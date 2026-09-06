@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CFR Loan Calculator</title>
+<meta name="theme-color" content="#172033">
+<meta name="description" content="CFR Loan Calculator — offline loan computation and reverse loanable amount calculator">
+<style>
+*{box-sizing:border-box}
+html{background:#eef2f6}
+body{margin:0;font-family:Arial,sans-serif;background:#eef2f6;color:#172033;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:18px}
+.appbar{background:#172033;color:#fff;border-radius:18px;padding:18px 20px;margin-bottom:16px;box-shadow:0 5px 18px rgba(0,0,0,.10)}
+.appbar h1{margin:0;font-size:23px}.appbar .sub{color:#d0d5dd;margin:5px 0 0;font-size:13px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 16px rgba(0,0,0,.07)}
+h2{font-size:17px;margin:0 0 16px}
+label{display:block;font-size:12px;font-weight:700;margin:12px 0 6px;color:#475467}
+select,input{width:100%;padding:13px;border:1px solid #d0d5dd;border-radius:10px;font-size:16px;background:#fff;min-height:48px}
+input{text-align:right}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.section{margin-top:17px;padding-top:13px;border-top:1px solid #eaecf0}
+.calcrow{display:flex;justify-content:space-between;gap:15px;padding:9px 0;font-size:14px}
+.calcrow strong{font-size:15px}.less{color:#667085}
+.result{margin-top:14px;padding:16px;border-radius:12px;background:#eef6ff}
+.result .big{font-size:25px;font-weight:800;margin-top:4px}
+.error{display:none;margin-top:10px;padding:10px;border-radius:9px;background:#fff0f0;color:#b42318;font-size:13px}
+button{width:100%;margin-top:16px;padding:14px;border:0;border-radius:10px;background:#172033;color:white;font-size:15px;font-weight:700;cursor:pointer;min-height:48px}
+.small{font-size:12px;color:#667085;margin-top:10px}
+@media(max-width:760px){
+  body{background:#f7f9fc}
+  .wrap{padding:0 12px 22px}
+  .appbar{border-radius:0 0 18px 18px;margin:0 -12px 14px;padding:18px 16px}
+  .appbar h1{font-size:21px}
+  .grid{grid-template-columns:1fr;gap:12px}
+  .card{padding:17px;border-radius:16px}
+  .row{grid-template-columns:1fr 1fr}
+  select,input{font-size:16px}
+}
+@media(max-width:390px){
+  .row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="appbar">
+  <h1>CFR LOAN CALCULATOR</h1>
+  <div class="sub">Loan computation &amp; reverse loanable amount</div>
+</div>
+
+<div class="grid">
+<div class="card">
+<h2>LOAN COMPUTATION</h2>
+<label>Loan Type</label>
+<select id="loanType" onchange="sync()">
+<option value="A">SAL / PSL</option><option value="A">MPL</option><option value="A">SAL / PSL XTRA</option>
+<option value="B">EL</option><option value="B">EL XTRA</option>
+</select>
+<div class="row">
+<div><label>Principal</label><input id="principal" inputmode="numeric" placeholder="10,000" oninput="money(this);compute()"></div>
+<div><label>Term</label><select id="term" onchange="compute()"></select></div>
+</div>
+<div class="section">
+<div class="calcrow"><span>Monthly Amortization (MA)</span><strong id="ma">₱0.00</strong></div>
+<div class="calcrow less"><span>LESS: Balance</span><strong id="balanceDisplay">₱0.00</strong></div>
+<label>Balance (Manual)</label><input id="balance" inputmode="numeric" placeholder="0" oninput="money(this);compute()">
+<div class="calcrow less"><span>LESS: Insurance</span><strong id="insurance">₱0.00</strong></div>
+<div class="calcrow less"><span>LESS: Tax</span><strong id="tax">₱0.00</strong></div>
+</div>
+<div class="result"><div>NTHP / NET PROCEEDS</div><div class="big" id="nthp">₱0.00</div></div>
+<div class="error" id="errA"></div>
+<button onclick="resetAll()">Reset Calculator</button>
+</div>
+
+<div class="card">
+<h2>LOANABLE AMOUNT</h2>
+<label>Loan Type</label>
+<select id="loanType2" onchange="sync2()">
+<option value="A">SAL / PSL</option><option value="A">MPL</option><option value="A">SAL / PSL XTRA</option>
+<option value="B">EL</option><option value="B">EL XTRA</option>
+</select>
+<div class="row">
+<div><label>Desired MA</label><input id="desired" inputmode="numeric" placeholder="11,772" oninput="money(this);reverse()"></div>
+<div><label>Term</label><select id="term2" onchange="reverse()"></select></div>
+</div>
+<div class="section">
+<div class="calcrow"><span>LOANABLE AMOUNT / PRINCIPAL</span><strong id="loanable">₱0.00</strong></div>
+<div class="calcrow"><span>RESULTING MA</span><strong id="resulting">₱0.00</strong></div>
+<div class="calcrow"><span>MAXIMUM</span><strong id="maximum">₱0.00</strong></div>
+</div>
+<div class="error" id="errB"></div>
+<button onclick="resetAll()">Reset Calculator</button>
+<div class="small">Minimum loan amount: ₱10,000. MA is rounded up to the nearest peso.</div>
+</div>
+</div>
+</div>
+
+<script>
+const factors={6:0.170874,9:0.115826,12:0.089,18:0.061832,24:0.048014,30:0.03982,36:0.034324,48:0.027584,60:0.023544};
+const ins={6:2.74,9:4.11,12:4.23,18:6.13,24:8.04,30:9.66,36:11.28,48:13.73,60:15.11};
+const termsA=[60,48,36,24,12],termsB=[60,48,36,30,24,18,12,9,6];
+const peso=n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const raw=id=>Number(String(document.getElementById(id).value).replace(/,/g,''))||0;
+function fill(sel,terms){sel.innerHTML=terms.map(t=>`<option value="${t}">${t} months</option>`).join('')}
+function money(el){let n=String(el.value).replace(/[^\d]/g,'');el.value=n?Number(n).toLocaleString('en-PH'):''}
+function sync(){const type=document.getElementById('loanType').value;fill(document.getElementById('term'),type==='A'?termsA:termsB);compute()}
+function sync2(){const type=document.getElementById('loanType2').value;fill(document.getElementById('term2'),type==='A'?termsA:termsB);reverse()}
+function ceilPeso(n){return Math.ceil(n-1e-10)}
+function round2(n){return Math.round((n+Number.EPSILON)*100)/100}
+function compute(){
+ const p=raw('principal'), b=raw('balance'), t=Number(document.getElementById('term').value), max=document.getElementById('loanType').value==='A'?1500000:1000000;
+ const err=document.getElementById('errA'); err.style.display='none';
+ if(p&& (p<10000||p>max)){err.textContent=`Principal must be between ₱10,000 and ${peso(max)}.`;err.style.display='block'}
+ const ma=ceilPeso(p*factors[t]);
+ const insurance=round2(p/1000*ins[t]);
+ const tax=p>250000?round2(p*0.0075):0;
+ document.getElementById('ma').textContent=peso(ma);
+ document.getElementById('balanceDisplay').textContent=peso(b);
+ document.getElementById('insurance').textContent=peso(insurance);
+ document.getElementById('tax').textContent=peso(tax);
+ document.getElementById('nthp').textContent=peso(p-b-insurance-tax);
+}
+function reverse(){
+ const d=raw('desired'),t=Number(document.getElementById('term2').value),max=document.getElementById('loanType2').value==='A'?1500000:1000000;
+ const err=document.getElementById('errB');err.style.display='none';
+ if(d&&d<10000*factors[t]){err.textContent=`Desired MA is below the minimum loan amount's MA (${peso(ceilPeso(10000*factors[t]))}).`;err.style.display='block'}
+ const loan=Math.min(max,Math.max(10000,Math.floor(d/factors[t])));
+ const ma=ceilPeso(loan*factors[t]);
+ document.getElementById('loanable').textContent=peso(loan);
+ document.getElementById('resulting').textContent=peso(ma);
+ document.getElementById('maximum').textContent=peso(max);
+}
+function resetAll(){
+ document.getElementById('principal').value='';document.getElementById('balance').value='';
+ document.getElementById('desired').value='';
+ document.getElementById('loanType').selectedIndex=0;document.getElementById('loanType2').selectedIndex=0;
+ sync();sync2();compute();reverse();
+}
+sync();sync2();compute();reverse();
+</script>
+</body>
+</html>
